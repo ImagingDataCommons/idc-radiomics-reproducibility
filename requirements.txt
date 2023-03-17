@@ -1,0 +1,11 @@
+SimpleITK
+pydicom
+matplotlib
+seaborn
+pandas
+numpy
+onnx
+onnxruntime_gpu
+pyplastimatch
+sklearn
+thedicomsort
