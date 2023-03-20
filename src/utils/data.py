@@ -215,7 +215,7 @@ def crop_around_coord(path_to_volume, path_to_output, coord,
   vol = sitk.GetArrayFromImage(sitk_vol)
       
   # otherwise go on with the processing and the cropping
-  bbox = get_bbox_dict(com_int, volume_shape=vol.shape, bbox_size=crop_size)
+  bbox = get_bbox_dict(coord, volume_shape=vol.shape, bbox_size=crop_size)
   
   # make sure no bounding box exceeds the dimension of the volume
   # (should be taken care of already in the get_bbox_dict() function)
