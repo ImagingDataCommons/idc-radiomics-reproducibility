@@ -13,7 +13,6 @@
 """
 
 import os
-import json
 import numpy as np
 import SimpleITK as sitk
 
@@ -105,15 +104,14 @@ def compute_center_of_mass(input_mask):
 ## ----------------------------------------
 ## ----------------------------------------
 
-def get_bbox_dict(coord, seg_mask_shape, bbox_size, z_first = True):
-
+def get_bbox_dict(coord, volume_shape, bbox_size, z_first=True):
 
   """
   Computes the bounding box of a segmented mask centered around a coordinate, given a specified box size. 
   
   Parameters:
     - coord: a tuple or list of three integers representing the coordinate at the center of the box.
-    - seg_mask_shape: a tuple or list of three integers representing the shape of the segmented mask.
+    - volume_shape: a tuple or list of three integers representing the shape of the volume.
     - bbox_size: a tuple or list of three integers representing the size of the bounding box
       in each direction (coronal, sagittal, and longitudinal).
     - z_first: a boolean indicating whether the longitudinal direction is the first dimension (True)
@@ -130,7 +128,9 @@ def get_bbox_dict(coord, seg_mask_shape, bbox_size, z_first = True):
       }
   """
   
-  assert len(int_center_of_mass) == 3
+  if coord.dtype != int:
+    coord.astype(int)
+  assert len(coord) == 3
   assert len(bbox_size) == 3
     
   bbox = dict()
@@ -139,45 +139,47 @@ def get_bbox_dict(coord, seg_mask_shape, bbox_size, z_first = True):
   bbox['sag'] = dict()
   bbox['lon'] = dict()
 
-  # take care of axes shuffling 
+  # if axes are mirrored 
   cor_idx = 1
   lon_idx = 0 if z_first else 2
   sag_idx = 2 if z_first else 0
   
   # bounding box if no exception is raised
-  sag_first = int(int_center_of_mass[sag_idx] - np.round(bbox_size[sag_idx]/2))
-  sag_last = int(int_center_of_mass[sag_idx] + np.round(bbox_size[sag_idx]/2)) - 1
+  sag_first = int(coord[sag_idx] - np.round(bbox_size[sag_idx]/2))
+  sag_last = int(coord[sag_idx] + np.round(bbox_size[sag_idx]/2)) - 1
   
-  cor_first = int(int_center_of_mass[cor_idx] - np.round(bbox_size[cor_idx]/2))
-  cor_last = int(int_center_of_mass[cor_idx] + np.round(bbox_size[cor_idx]/2)) - 1
+  cor_first = int(coord[cor_idx] - np.round(bbox_size[cor_idx]/2))
+  cor_last = int(coord[cor_idx] + np.round(bbox_size[cor_idx]/2)) - 1
   
-  lon_first = int(int_center_of_mass[lon_idx] - np.round(bbox_size[lon_idx]/2))
-  lon_last = int(int_center_of_mass[lon_idx] + np.round(bbox_size[lon_idx]/2)) - 1
+  lon_first = int(coord[lon_idx] - np.round(bbox_size[lon_idx]/2))
+  lon_last = int(coord[lon_idx] + np.round(bbox_size[lon_idx]/2)) - 1
 
-  # print out exceptions
-  if sag_last > seg_mask_shape[sag_idx] - 1 or sag_first < 0:
+  # print warning if the bounding box size exceeds the volume dimensions
+  # this can happen, e.g., when the tumour is located very close to one of
+  # the borders of the CT image (for instance, close to the lung-chest wall interface)
+  if sag_last > volume_shape[sag_idx] - 1 or sag_first < 0:
     print('WARNING: the bounding box size exceeds volume dimensions (sag axis)')
     print('Cropping will be performed ignoring the "bbox_size" parameter')
     
-  if cor_last > seg_mask_shape[cor_idx] - 1 or cor_first < 0:
+  if cor_last > volume_shape[cor_idx] - 1 or cor_first < 0:
     print('WARNING: the bounding box size exceeds volume dimensions (cor axis)')
     print('Cropping will be performed ignoring the "bbox_size" parameter')
     
-  if lon_last > seg_mask_shape[lon_idx] - 1 or lon_first < 0:
+  if lon_last > volume_shape[lon_idx] - 1 or lon_first < 0:
     print('WARNING: the bounding box size exceeds volume dimensions (lon axis)')
     print('Cropping will be performed ignoring the "bbox_size" parameter')
     
-  # take care of exceptions where bbox is bigger than the actual volume
+  # take care of the aforementioned exceptions
   sag_first = int(np.max([0, sag_first]))
-  sag_last = int(np.min([seg_mask_shape[sag_idx] - 1, sag_last]))
+  sag_last = int(np.min([volume_shape[sag_idx] - 1, sag_last]))
   
   cor_first = int(np.max([0, cor_first]))
-  cor_last = int(np.min([seg_mask_shape[cor_idx] - 1, cor_last]))
+  cor_last = int(np.min([volume_shape[cor_idx] - 1, cor_last]))
   
   lon_first = int(np.max([0, lon_first]))
-  lon_last = int(np.min([seg_mask_shape[lon_idx] - 1, lon_last]))
+  lon_last = int(np.min([volume_shape[lon_idx] - 1, lon_last]))
   
-  # populate the dictionary and return it
+  # populate the output dictionary
   bbox['sag']['first'] = sag_first
   bbox['sag']['last'] = sag_last
 
@@ -188,154 +190,32 @@ def get_bbox_dict(coord, seg_mask_shape, bbox_size, z_first = True):
   bbox['lon']['last'] = lon_last
     
   return bbox
-  
+
 ## ----------------------------------------
 ## ----------------------------------------
 
-def export_res_nrrd_from_dicom(dicom_ct_path, dicom_rt_path, output_dir, pat_id,
-                               ct_interpolation = 'linear', output_dtype = "int"):
-  
-  """
-  
-  This function exports a resampled CT scan and a resampled RT structure set from a DICOM CT and a DICOM RT structure set.
-  
-  Parameters:
-    - dicom_ct_path: a string representing the path of the DICOM CT folder.
-    - dicom_rt_path: a string representing the path of the DICOM RT structure set folder.
-    - output_dir: a string representing the path of the output directory.
-    - pat_id: a string representing the patient ID.
-    - ct_interpolation: a string representing the interpolation method to be used for the CT scan resampling.
-    - output_dtype: a string representing the data type of the exported nrrd files.
-
-  Returns:
-    - a dictionary containing the paths of the exported nrrd files.
+def crop_around_coord(path_to_volume, path_to_output, coord,
+                      crop_size=(150, 150, 150), z_first=True):
 
   """
-  
-  out_log = dict()
-  
-  # temporary nrrd files path (DICOM to NRRD, no resampling)
-  ct_nrrd_path = os.path.join(output_dir, 'tmp_ct_orig.nrrd')
-  rt_folder = os.path.join(output_dir, pat_id  + '_whole_ct_rt')
-  
-  # log the labels of the exported segmasks
-  rt_struct_list_path = os.path.join(output_dir, pat_id + '_rt_list.txt')
-  
-  # convert DICOM CT to NRRD file without resampling
-  bash_command = list()
-  bash_command += ["plastimatch", "convert"]
-  bash_command += ["--input", dicom_ct_path]
-  bash_command += ["--output-img", ct_nrrd_path]
-                   
-  # print progress info
-  print("Converting DICOM CT to NRRD using plastimatch... ", end = '')
-  out_log['dcm_ct_to_nrrd'] = subprocess.call(bash_command)
-  print("Done.")
-  
-  # convert DICOM RTSTRUCT to NRRD file without resampling
-  bash_command = list()
-  bash_command += ["plastimatch", "convert"]
-  bash_command += ["--input", dicom_rt_path]
-  bash_command += ["--referenced-ct", dicom_ct_path]
-  bash_command += ["--output-prefix", rt_folder]
-  bash_command += ["--prefix-format", 'nrrd']
-  bash_command += ["--output-ss-list", rt_struct_list_path]
-  
-  # print progress info
-  print("Converting DICOM RTSTRUCT to NRRD using plastimatch... ", end = '')
-  out_log['dcm_rt_to_nrrd'] = subprocess.call(bash_command)
-  print("Done.")
-  
-  # look for the labelmap for GTV
-  gtv_rt_file = [f for f in os.listdir(rt_folder) if 'gtv-1' in f.lower()][0]
-  rt_nrrd_path = os.path.join(rt_folder, gtv_rt_file)
-  
-  ## ----------------------------------------
-  
-  # actual nrrd files path 
-  res_ct_nrrd_path = os.path.join(output_dir, pat_id + '_ct_resampled.nrrd')
-  res_rt_nrrd_path = os.path.join(output_dir, pat_id + '_rt_resampled.nrrd')
-  
-  # resample the NRRD CT file to 1mm isotropic
-  bash_command = list()
-  bash_command += ["plastimatch", "resample"]
-  bash_command += ["--input", ct_nrrd_path]
-  bash_command += ["--output", res_ct_nrrd_path]
-  bash_command += ["--spacing", "1 1 1"]
-  bash_command += ["--interpolation", ct_interpolation]
-  bash_command += ["--output-type", output_dtype]
-  
-  # print progress info
-  print("\nResampling NRRD CT to 1mm isotropic using plastimatch... ", end = '')
-  out_log['dcm_nrrd_ct_resampling'] = subprocess.call(bash_command)
-  print("Done.")
-  
-  # resample the NRRD RTSTRUCT file to 1mm isotropic
-  bash_command = list()
-  bash_command += ["plastimatch", "resample"]
-  bash_command += ["--input", rt_nrrd_path]
-  bash_command += ["--output", res_rt_nrrd_path]
-  bash_command += ["--spacing", "1 1 1"]
-  bash_command += ["--interpolation", "nn"]
-    
-  # print progress info
-  print("Resampling NRRD RTSTRUCT to 1mm isotropic using plastimatch... ", end = '')
-  out_log['dcm_nrrd_rt_resampling'] = subprocess.call(bash_command)
-  print("Done.")
-
-  # clean up
-  print("\nRemoving temporary files (DICOM to NRRD, non-resampled)... ", end = '')
-  os.remove(ct_nrrd_path)
-  print("Done.")
-  
-  return out_log
-
-
-## ----------------------------------------
-## ----------------------------------------
-
-def export_com_subvolume(ct_nrrd_path, rt_nrrd_path, output_dir, pat_id, crop_size = (150, 150, 150),
-                         z_first = True, rm_orig = False):
-
-  """
-  This function exports a subvolume centered on the CoM of the GTV and of the same size as the crop_size parameter.
+  This function exports a crop of the specified volume and size, centered around a coordinate.
 
   Parameters:
-    - ct_nrrd_path: a string representing the path to the NRRD CT file.
-    - rt_nrrd_path: a string representing the path to the NRRD RTSTRUCT file.
-    - output_dir: a string representing the path of the output directory.
-    - pat_id: a string representing the patient ID.
+    - path_to_volume: a string representing the path to the volume to crop.
+    - path_to_output: a string representing the path of the output file.
+    - coord: a tuple representing the coordinates around which to crop.
     - crop_size: a tuple representing the size of the subvolume to be exported. Defaults to 150x150x150.
     - z_first: a boolean indicating whether the z-axis is the first or the last in the NRRD files. Defaults to True.
-    - rm_orig: a boolean indicating whether the original CT and RTSTRUCT files should be removed. Defaults to False.
-
-  Returns:
-    - a dictionary containing the log of the operations performed.
   """
   
   # sanity check
-  assert(os.path.exists(ct_nrrd_path))
-  assert(os.path.exists(rt_nrrd_path))
+  assert(os.path.exists(path_to_volume))
   
-  sitk_seg = sitk.ReadImage(rt_nrrd_path)
-  seg = sitk.GetArrayFromImage(sitk_seg)
-  
-  # output dictionary contains info regarding CoM and the cropping op.s
-  out_log = dict()
-    
-  com = compute_center_of_mass(input_mask = seg)
-  com_int = [int(coord) for coord in com]
-  
-  out_log["com"] = com
-  out_log["com_int"] = com_int
-  
-  # if CoM calculation goes wrong, abort returning the out_log so far
-  if sum(com_int) < 0:
-    print('WARNING: CoM calculation resulted in an error, aborting... ')
-    return out_log
-  
+  sitk_vol = sitk.ReadImage(path_to_volume)
+  vol = sitk.GetArrayFromImage(sitk_vol)
+      
   # otherwise go on with the processing and the cropping
-  bbox = get_bbox_dict(com_int, seg_mask_shape = seg.shape, bbox_size = crop_size)
+  bbox = get_bbox_dict(com_int, volume_shape=vol.shape, bbox_size=crop_size)
   
   # make sure no bounding box exceeds the dimension of the volume
   # (should be taken care of already in the get_bbox_dict() function)
@@ -343,15 +223,10 @@ def export_com_subvolume(ct_nrrd_path, rt_nrrd_path, output_dir, pat_id, crop_si
   lon_idx = 0 if z_first else 2
   sag_idx = 2 if z_first else 0 
   
-  # less and not leq at the second term --> the last slice of the volume is seg.shape[...] - 1
-  assert(bbox['sag']['first'] >= 0 and bbox['sag']['last'] < seg.shape[sag_idx])
-  assert(bbox['cor']['first'] >= 0 and bbox['cor']['last'] < seg.shape[cor_idx])
-  assert(bbox['lon']['first'] >= 0 and bbox['lon']['last'] < seg.shape[lon_idx])
-  
-  
-  # cropped nrrd files path
-  ct_nrrd_crop_path = os.path.join(output_dir, pat_id + '_ct_res_crop.nrrd')
-  rt_nrrd_crop_path = os.path.join(output_dir, pat_id + '_rt_res_crop.nrrd')
+  # sanity check on dimensions
+  assert(bbox['sag']['first'] >= 0 and bbox['sag']['last'] < vol.shape[sag_idx])
+  assert(bbox['cor']['first'] >= 0 and bbox['cor']['last'] < vol.shape[cor_idx])
+  assert(bbox['lon']['first'] >= 0 and bbox['lon']['last'] < vol.shape[lon_idx])
   
   if z_first:
     xmin = str(bbox["sag"]["first"]); xmax = str(bbox["sag"]["last"])
@@ -366,42 +241,15 @@ def export_com_subvolume(ct_nrrd_path, rt_nrrd_path, output_dir, pat_id, crop_si
   # crop the NRRD CT file to the crop_size subvolume
   bash_command = list()
   bash_command += ["plastimatch", "crop"]
-  bash_command += ["--input", ct_nrrd_path]
-  bash_command += ["--output", ct_nrrd_crop_path]
+  bash_command += ["--input", path_to_volume]
+  bash_command += ["--output", path_to_output]
   bash_command += ["--voxels", "%s %s %s %s %s %s"%(xmin, xmax, ymin, ymax, zmin, zmax)]
 
+  _ = subprocess.run(bash_command, capture_output=True, check=True)
+
   # print progress info
-  print("\nCropping the resampled NRRD CT to bbox using plastimatch... ", end = '')
-  out_log['dcm_nrrd_ct_cropping'] = subprocess.call(bash_command)
+  print("\nCropping the volume around the specified coordinates using plastimatch... ", end = '')
   print("Done.")
-  
-  
-  # crop the NRRD RT file to the crop_size subvolume
-  bash_command = list()
-  bash_command += ["plastimatch", "crop"]
-  bash_command += ["--input", rt_nrrd_path]
-  bash_command += ["--output", rt_nrrd_crop_path]
-  bash_command += ["--voxels", "%s %s %s %s %s %s"%(xmin, xmax, ymin, ymax, zmin, zmax)]
-    
-  # print progress info
-  print("Cropping the resampled NRRD RTSTRUCT to bbox using plastimatch... ", end = '')
-  out_log['dcm_nrrd_rt_cropping'] = subprocess.call(bash_command)
-  print("Done.")
-  
-  # log some useful information about the cropping
-  log_file_path = os.path.join(output_dir, pat_id + '_crop_log.json')
-  with open(log_file_path, 'w') as json_file:
-    json.dump(bbox, json_file, indent = 2)
-  
-  if rm_orig:
-    # clean up
-    print("\nRemoving the resampled NRRD files... ", end = '')
-    os.remove(ct_nrrd_path)
-    os.remove(rt_nrrd_path)
-    print("Done.")
-  
-  return out_log
-  
 
 ## ----------------------------------------
 ## ----------------------------------------
