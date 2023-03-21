@@ -1,0 +1,6 @@
+SimpleITK
+pydicom
+onnx
+onnxruntime_gpu
+pyplastimatch
+thedicomsort
