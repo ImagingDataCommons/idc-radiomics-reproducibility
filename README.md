@@ -1,5 +1,8 @@
 # Imaging Data Commons - Radiomics Reproducibility Use Case
 
+[![DOI](https://zenodo.org/badge/615249629.svg)](https://zenodo.org/badge/latestdoi/615249629)
+
+
 Transparent and Reproducible AI-based Medical Imaging Pipelines Using the Cloud.
 
 If you use code or parts of this code in your work, please cite our publication:
