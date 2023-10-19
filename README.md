@@ -2,13 +2,11 @@
 
 [![DOI](https://zenodo.org/badge/615249629.svg)](https://zenodo.org/badge/latestdoi/615249629)
 
-
 Transparent and Reproducible AI-based Medical Imaging Pipelines Using the Cloud.
 
 If you use code or parts of this code in your work, please cite our publication:
 
-> {TBD}
-
+> Dennis Bontempi, Leonard Nuernberg, Deepa Krishnaswamy, et Al. - Transparent and Reproducible AI-based Medical Imaging Pipelines Using the Cloud. https://doi.org/10.21203/rs.3.rs-3142996/v1
 
 # Table of Contents
 
@@ -16,6 +14,7 @@ If you use code or parts of this code in your work, please cite our publication:
 - [Repository Structure](#repository-structure)
 - [On the original study](#on-the-original-study)
 - [Replication Notes](#replication-notes)
+- [Using This Resource Locally](#using-this-resource-locally)
 - [Acknowledgments](#acknowledgments)
 
 # Overview
@@ -99,6 +98,76 @@ To enable the repeatability of this study and promote forward compatibility, we 
 After testing with various statistical tools, we observed that the difference between the results produced by the pipeline originally published by Hosny et Al. and those generated in our replication are not statistically significant (`p>0.05` for the two-sided Mann-Whitney U test and the DeLong test for paired AUC curves). We can therefore conclude that the discrepancy between the two predictive models holds little to no significance or impact on the overall outcome or findings. These results also prove the model's robustness to variation in the input segmentation mask, as the original work claims.
 
 Furthermore, we conducted a Kaplan-Meier analysis, as done in the original publication, to assess the stratification power of the AI pipeline. We found that both the original pipeline and the replicated pipeline can successfully stratify higher-risk patients from lower-risk patients (`p<0.001` and `p=0.023`, for the original and the replicated pipeline, respectively) when the risk-score threshold shared with the original publication is used to compute the split.
+
+# Using This Resource Locally
+
+## Local Runtime Using Docker
+
+We strongly believe using the cloud is the most immediate, reliable, and easy solution - as it does not require any additional set-up or readily available hardware. However, should any user want to use the resources shared within this repository locally, we suggest they follow the instructions below.
+
+The best way to reproduce the computational environment found on Google Colab (i.e., both the system and the Python dependencies) is containerization. Fortunately, since earlier this year, Google has made all the versions of the Docker containers upon which Colab is built publicly available [as part of this registry](https://console.cloud.google.com/artifacts/docker/colab-images/us/public/runtime). 
+
+After [setting up Docker on your system](https://www.docker.com/get-started/), to pull the latest Docker Colab image, the user can run the following command:
+
+```
+docker pull us-docker.pkg.dev/colab-images/public/runtime
+```
+
+Please note this container will work independently from whether you have a working GPU installed or not - but if you want to use a GPU within the container, you should check out [this guide](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html) to install the `nvidia-container-toolkit` alongside Docker on your machine.
+
+Once the container is pulled, the user should follow the official [Colab local runtimes guide from Google](https://research.google.com/colaboratory/local-runtimes.html) to set up the local instance (by following Step 1 - Option 1). The following command
+
+```
+docker run --rm -it -p 127.0.0.1:9000:8080 us-docker.pkg.dev/colab-images/public/runtime
+```
+
+will run the previously downloaded container and ensure the local Colab runtime service will be available at port 9000 on your local machine. To enable GPU support (if the `nvidia-container-toolkit` was correctly installed), the user can run:
+
+```
+docker run --rm -it --gpus all -p 127.0.0.1:9000:8080 us-docker.pkg.dev/colab-images/public/runtime
+```
+
+or, if we want the container to access only a specific GPU (e.g., the GPU with id 0):
+
+```
+docker run --rm -it --gpus device=0 -p 127.0.0.1:9000:8080 us-docker.pkg.dev/colab-images/public/runtime
+```
+
+Docker also provides numerous useful options to limit the resources the container can access once running. If you want to learn more, please follow [the official guide](https://docs.docker.com/config/containers/resource_constraints/).
+
+Once the container is up and running, the terminal will display something similar to the following:
+
+```
+[...]
+To access the notebook, open this file in a browser:
+file:///root/.local/share/jupyter/runtime/nbserver-172-open.html (type=jupyter)
+Or copy and paste one of these URLs
+http://127.0.0.1:9000/?token=c8f179317db76617ae37f47d5f53a3301ea2ce5e7a34f7d1
+[...]
+```
+
+In order to connect Google Colab to the local instance, we will need to open the notebook we want to run (e.g., the [processing_example](https://colab.research.google.com/github/ImagingDataCommons/idc-radiomics-reproducibility/blob/main/notebooks/processing_example.ipynb) notebook we make available under notebooks) and follow these very simple steps (also highlighted in the official [Colab local runtimes guide](https://research.google.com/colaboratory/local-runtimes.html)):
+
+> Step 2: Connect to the local runtime
+In Colab, click the "Connect" button and select "Connect to local runtime...". Enter the URL from the previous step in the dialog that appears and click the "Connect" button. After this, you should now be connected to your local runtime.
+
+<img width="454" alt="image" src="https://github.com/ImagingDataCommons/idc-radiomics-reproducibility/assets/31729248/30940347-2fb5-42ab-a453-86afb74d06e6">
+
+<img width="632" alt="image" src="https://github.com/ImagingDataCommons/idc-radiomics-reproducibility/assets/31729248/1bf77c5e-3646-48eb-bdbe-1293e986bf60">
+
+<img width="632" alt="image" src="https://github.com/ImagingDataCommons/idc-radiomics-reproducibility/assets/31729248/98716cc5-30c5-44af-bc19-dc81b139034c">
+
+If everything is correctly setup, in the resources panel you should see something like the following:
+
+<img width="284" alt="image" src="https://github.com/ImagingDataCommons/idc-radiomics-reproducibility/assets/31729248/b46810f6-4c13-4442-ac41-f55d9990005d">
+
+If you see this message, you are ready to run our notebooks from a local Colab runtime!
+
+## Local Runtime Without Using Docker
+
+If, for some reason, the user does not want to install Docker on their machine, the official [Colab local runtimes guide from Google](https://research.google.com/colaboratory/local-runtimes.html) provides an alternative based on Jupyter to run a local runtime without it (see Step 1 - Option 2). However, in this case, the user must ensure all of the system and Python dependencies are installed (to mimic the Colab environment).
+
+Please note that this might not be possible if the user runs a different OS or a different OS Version from what Colab is running (i.e., Ubuntu 22.04 LTS as of November 2023).
 
 # Acknowledgments
 
