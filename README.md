@@ -118,13 +118,23 @@ Finally, the `model` folder stores all of the code we used to convert the model 
 
 ### Hosny et Al.
 
-The `data` folder stores the CSV files shared with Hosny e Al. and generated in our replication study.
+The `data/hosny_et_al` folder stores the CSV files shared with Hosny e Al. and generated in our replication study.
 
-The `Radboud.csv` and `nsclc-radiomics_hosny_baseline.csv` were shared with the original publication and store the radiomics features and the outputs of the deep learning model. We used the data stored in the first file to compute the median split threshold we used for the survival analysis in the `results_comparison` notebook, while the data in the second file were used to compare the results of the original study to those of our replication.
+The `Radboud.csv` and `nsclc-radiomics_hosny_baseline.csv` were shared with the original publication and store the radiomics features and the outputs of the deep learning model. We used the data stored in the first file to compute the median split threshold we used for the survival analysis in the `hosny_results_comparison` notebook, while the data in the second file were used to compare the results of the original study to those of our replication.
 
-The `nsclc-radiomics_reproducibility.csv` stores the results of the `complete_inference` for ease of access (since the complete replication of the study will take the user a few hours on Colab, due to the computationally intensive operations involved in the processing pipeline).
+The `nsclc-radiomics_reproducibility.csv` stores the results of the `hosny_complete_inference` for ease of access (since the complete replication of the study will take the user a few hours on Colab, due to the computationally intensive operations involved in the processing pipeline).
 
-Finally, the clinical data in `nsclc-radiomics_clinical.csv`, useful for the survival analysis and the Kaplan-Meier analysis computed in the `results_comparison` notebook, were obtained from the [TCIA page of the NSCLC-Radiomics dataset](https://wiki.cancerimagingarchive.net/display/Public/NSCLC-Radiomics). It is worth noting that the clinical data associated to cohorts hosted by the Imaging Data Commons can also be retrieved through the platform, following the tutorial found in [this notebook](https://github.com/ImagingDataCommons/IDC-Tutorials/blob/master/notebooks/clinical_data_intro.ipynb).
+Finally, the clinical data in `nsclc-radiomics_clinical.csv`, useful for the survival analysis and the Kaplan-Meier analysis computed in the `hosny_results_comparison` notebook, were obtained from the [TCIA page of the NSCLC-Radiomics dataset](https://wiki.cancerimagingarchive.net/display/Public/NSCLC-Radiomics). It is worth noting that the clinical data associated to cohorts hosted by the Imaging Data Commons can also be retrieved through the platform, following the tutorial found in [this notebook](https://github.com/ImagingDataCommons/IDC-Tutorials/blob/master/notebooks/clinical_data_intro.ipynb).
+
+### Pai et Al.
+
+The `data/pai_et_al` folder stores the CSV files shared with Pai e Al. and generated in our replication study.
+
+The subfolder `clinical` stores the clinical data for the [NSCLC-Radiomics dataset](https://wiki.cancerimagingarchive.net/display/Public/NSCLC-Radiomics) and the [NSCLC-Radiogenomics datasets](https://wiki.cancerimagingarchive.net/display/Public/NSCLC+Radiogenomics) obtained from the respective TCIA pages, used for the survival analysis and the Kaplan-Meier analysis computed in the `pai_complete_inference` notebook.
+
+Furthermore, the `foundation_features` folder stores the deep features extracted from the foundation model published by Pai et Al., pre-computed, so that the user can streamline the replication process and simply look at the results if not interested in the long computational part. The CSV files in the folder store the 4096 foundation features computed for both the NSCLC-Radiomics and the NSCLC-Radiogenomics datasets, used by the linear models shared by Pai et Al. to compute a risk score for the survival of each patient in the collections.
+
+Another component of the survival analysis in `pai_complete_inference` is the median of the risk scores computed on the validation cohort HarvardRT, used to separate high-risk patients from low-risk patients in the publication. Such information is stored in the `HarvardRT_foundation_risk.csv` file under the `risk_scores` folder.
 
 # Replication Notes
 
